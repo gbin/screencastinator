@@ -49,3 +49,25 @@ func TestRendering(t *testing.T) {
 
 }
 
+type RuneWidthTest struct {
+	in  string
+	out int
+}
+
+var runewidthtests = []RuneWidthTest{
+	{"a", 1},
+	{"✘", 2},
+	{"界", 2},
+	{"\u2b80", 2},
+
+}
+
+func TestRuneWidth(t *testing.T) {
+	for _, tt := range runewidthtests {
+		if out := RuneWidth([]rune(tt.in)[0]); out != tt.out {
+			t.Errorf("Width(%q) = %d, want %d", tt.in, out, tt.out)
+		}
+	}
+}
+
+

@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"strings"
 	"scriptedit"
+	"bytes"
 )
 
 type Timing struct {
@@ -20,12 +21,17 @@ var parsedcontent []scriptedit.AnsiCmd
 var timings []Timing = make([]Timing, 0)
 
 var position int
+var bytepos int
 var size int
 var total_time float32
 
 const STATUS_POS = 43
+const WIDTH = 132
+const POINTER = WIDTH/2
 
-var HORIZONTAL_LINE = strings.Repeat("─", 132)
+var TOP_NAVBAR = strings.Repeat("─", POINTER) + "┬" + strings.Repeat("─", WIDTH - POINTER - 1)
+var BOTTOM_NAVBAR = strings.Repeat("─", POINTER) + "┴" + strings.Repeat("─", WIDTH - POINTER - 1)
+
 const ESC = scriptedit.ESC
 const ESC_CHR = scriptedit.ESC_CHR
 
@@ -50,7 +56,6 @@ var (
 )
 
 func main() {
-	//rawcontent := make([]byte, 1000000)
 	file, err := os.Open("demo.session");
 	if err != nil {
 		fmt.Println(err)
@@ -162,102 +167,71 @@ func readCursorPosition() (int, int) {
 
 }
 
-func writeStatus() {
-	x, y := readCursorPosition()
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS, 1))
-	write(RESET_COLOR)
-	write(HORIZONTAL_LINE)
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 1, 1))
-	for index, ansi := range(parsedcontent[position:]) {
+
+
+func writeTicker() {
+	left := position - POINTER
+	if left < 0 {
+		write(strings.Repeat("-", -left))
+		left = 0
+	}
+	right := position + WIDTH - POINTER
+	if right >= size {
+		defer write(strings.Repeat("-", right - size))
+		right = size - 1
+	}
+
+
+	for index, ansi := range (parsedcontent[left:right]) {
 		if ansi.Code != nil {
 			write(ansi.Code.Symbol)
 		} else {
-			switch ansi.Letter {
-			case '\000':
-				write("?")
-			case '\001':
-				write("?")
-			case '\002':
-				write("?")
-			case '\003':
-				write("?")
-			case '\004':
-				write("?")
-			case '\005':
-				write("?")
-			case '\006':
-				write("?")
-			case '\007':
-				write("?")
-			case '\010':
-				write("?")
-			case '\011':
-				write("?")
-			case '\012':
-				write("?")
-			case '\013':
-				write("?")
-			case '\014':
-				write("?")
-			case '\015':
-				write("?")
-			case '\016':
-				write("?")
-			case '\017':
-				write("?")
-			case '\020':
-				write("?")
-			case '\021':
-				write("?")
-			case '\022':
-				write("?")
-			case '\023':
-				write("?")
-			case '\024':
-				write("?")
-			case '\025':
-				write("?")
-			case '\026':
-				write("?")
-			case '\027':
-				write("?")
-			case '\030':
-				write("?")
-			case '\031':
-				write("?")
-			case '\032':
-				write("?")
-			case '\033':
-				write("?")
-			case '\034':
-				write("?")
-			case '\035':
-				write("?")
-			case '\036':
-				write("?")
-			case '\037':
-				write("?")
-			default:
-				write(string(ansi.Letter))
-			}
-
-
+			write(string(scriptedit.EdulcorateCharacter(ansi.Letter)))
 		}
-		if index == 132 {
+		if index == WIDTH {
 			break
 		}
 	}
+
+}
+func navBar() {
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS, 1))
+	write(TOP_NAVBAR)
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 1, 1))
+	writeTicker()
 	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 2, 1))
-	write(HORIZONTAL_LINE)
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 5))
+	write(BOTTOM_NAVBAR)
+}
+
+func writeStatus() {
+	x, y := readCursorPosition()
+	write(RESET_COLOR)
+	navBar()
+	var explanation string
+	currentAnsi := parsedcontent[position]
+	if currentAnsi.Code != nil {
+		explanation = currentAnsi.Code.Explanation
+	} else {
+		explanation = fmt.Sprintf("Character %c (%x)", scriptedit.EdulcorateCharacter(currentAnsi.Letter), currentAnsi.Letter)
+	}
+
+	if currentAnsi.Params != "" {
+		explanation += " (" + currentAnsi.Params + ")"
+	}
+	leftExplanation := POINTER - len(explanation)/2
+
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, leftExplanation))
+	write("| " + explanation + " |")
+
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 5, 5))
 	write(fmt.Sprintf("Offset %d / %d", position, size))
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 4, 5))
-	_, _, time := deduceTiming(position)
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 6, 5))
+	_, _, time := deduceTiming(bytepos)
 	write(fmt.Sprintf("Time   %f / %f s", time, total_time))
 
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 50))
-	write(fmt.Sprintf("[←] : for   [→] : rev   [SPACE] : Play/Pause   [d] : del  %dx%d",x,y))
-	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 4, 50))
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 5, 50))
+	write(fmt.Sprintf("[←] : for   [→] : rev   [SPACE] : Play/Pause   [d] : del  %dx%d", x, y))
+	write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 6, 50))
 	write(fmt.Sprintf("[CTRL] + [←] : ff   [CTRL] + [→] : rw   [q] : quit"))
 	write(fmt.Sprintf(MOVE_CURSOR, x, y))
 }
@@ -265,11 +239,25 @@ func writeStatus() {
 func redraw() {
 	write(RESET)
 	write(CLEAR_SCREEN)
-	for _, ansi := range(parsedcontent[0:position]) {
-		write(ansi.String())
-	}
+	var buffer bytes.Buffer
 
+	for _, ansi := range (parsedcontent[0:position]) {
+		buffer.WriteString(ansi.String())
+	}
+	bytepos = buffer.Len()
+	write(buffer.String())
 	writeStatus()
+}
+
+func bytepos2position(bytepos int) int {
+	var offset int
+	for index, ansi := range parsedcontent {
+		offset+= len(ansi.String())
+		if offset >= bytepos {
+			return index
+		}
+	}
+	return -1
 }
 
 func readchr() byte {
@@ -279,8 +267,6 @@ func readchr() byte {
 }
 
 func screenio() error {
-
-	//write(fmt.Sprintf(CHANGE_SIZE, 46, 132))
 	write(CLEAR_SCREEN)
 	writeStatus()
 out:
@@ -291,46 +277,50 @@ out:
 			chr = readchr()
 			if chr == '[' {
 				chr = readchr()
-				if (chr == '1' && readchr() == ';' && readchr() == '5') {
-					chr = readchr()
-					switch chr {   // this is a CTRL + ARROW
-					case BACK:
-						pos, index, _ := deduceTiming(position)
-						if position > index {
-							position = index
-							redraw()
-						} else {
-							if pos > 0 {
-								position -= timings[pos - 1].length
+
+				switch chr {
+				case '1':
+					if (readchr() == ';' && readchr() == '5') {
+						chr = readchr()
+						switch chr {   // this is a CTRL + ARROW
+						case BACK:
+							timeindex, offset, _ := deduceTiming(bytepos)
+							if bytepos > offset {
+								position = bytepos2position(offset)
+								redraw()
+							} else {
+								if timeindex > 0 {
+									position = bytepos2position(bytepos - timings[timeindex - 1].length)
+									redraw()
+								}
+							}
+							break
+						case FORWARD:
+							timeindex, offset, _ := deduceTiming(bytepos)
+							if timeindex < len(timings) - 1 {
+								position = bytepos2position(offset + timings[timeindex + 1].length)
 								redraw()
 							}
-						}
-						break
-					case FORWARD:
-						pos, index, _ := deduceTiming(position)
-						if pos < len(timings) - 1 {
-							position = index + timings[pos + 1].length
-							redraw()
-						}
-						break
-					}
-
-				} else {
-					switch chr {
-					case BACK:
-						if position > 0 {
-							position-=1
-						}
-						redraw()
-						break
-					case FORWARD:
-						if position < size {
-							position+=1
+							break
 						}
 
-						redraw()
-						break
 					}
+				case '3':
+					if (readchr() == '~') { // this is DEL
+						copy(parsedcontent[position:], parsedcontent[position+1:])
+						parsedcontent = parsedcontent[:len(parsedcontent)-1]
+						redraw()
+					}
+				case BACK:
+					if position > 0 {
+						position-=1
+					}
+					redraw()
+				case FORWARD:
+					if position < size {
+						position+=1
+					}
+					redraw()
 				}
 			}
 		case 'q':
