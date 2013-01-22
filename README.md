@@ -8,7 +8,7 @@ Screencastinator
 
 Screencastinator is a Tool to edit your ANSI console screencasts created with the standard linux-util tool "script".
 
-Making a screencast is extremely tedious. This tool gives you the opportunity to edit/correct the mistakes you make during the console portion without to correct them in a video editor.
+Making a screencast is extremely tedious. This tool gives you the opportunity to edit/correct the mistakes you made during the console portion without to correct them in a video editor.
 
 For example you made this typo during the recording: % cd mydirrec^H^H^Herctory
 
