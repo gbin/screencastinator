@@ -84,7 +84,7 @@ func main() {
 		return
 	}
 
-	file, err := os.Open("demo.session");
+	file, err := os.Open(sessionFilename);
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -96,7 +96,7 @@ func main() {
 	size = len(parsedcontent)
 
 	file.Close()
-	timings_file, err := os.Open("demo.timing");
+	timings_file, err := os.Open(*timingFilename);
 	if err != nil {
 		fmt.Println(err)
 		return
