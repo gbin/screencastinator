@@ -1,19 +1,0 @@
-Script started on Mon 21 Jan 2013 01:25:03 AM PST
-[1m[7m%[27m[1m[0m                                                                                                                                    ]2;gbin@sal: ~/projects/script-editor]1;..script-editor[0m[27m[24m[J[01;32mgbin@sal [01;34m~/projects/script-editor (master*) %[00m [K[32ml[39m[32ml[32ml[39m
-]2;ls --color=tty -l]1;lltotal 28
--rw-r--r-- 1 gbin gbin    0 Jan 21 01:25 demo.session
--rw-r--r-- 1 gbin gbin    0 Jan 21 01:25 demo.timing
-drwxr-xr-x 4 gbin gbin 4096 Jan 19 11:06 [0m[01;34mout[0m
-drwxr-xr-x 3 gbin gbin 4096 Jan 19 11:44 [01;34mpkg[0m
--rwxr-xr-x 1 gbin gbin   74 Jan 21 01:25 [01;32mrecord.sh[0m
--rwxr-xr-x 1 gbin gbin   70 Jan 19 22:27 [01;32mrun.sh[0m
--rw-r--r-- 1 gbin gbin  423 Jan 19 10:58 script-editor.iml
-drwxr-xr-x 3 gbin gbin 4096 Jan 21 01:20 [01;34msrc[0m
--rwxr-xr-x 1 gbin gbin   70 Jan 20 16:54 [01;32mtest.sh[0m
-[1m[7m%[27m[1m[0m                                                                                                                                    ]2;gbin@sal: ~/projects/script-editor]1;..script-editor[0m[27m[24m[J[01;32mgbin@sal [01;34m~/projects/script-editor (master*) %[00m [K[1m[31mc[0m[39m[1m[31mc[1m[31ma[0m[39m[0m[32mc[0m[32ma[32mt[39m [4mt[24m[4mt[4me[24m[4me[4mst.sh[24m[1m [0m[0m 
-]2;cat test.sh]1;catexport GOPATH="/home/gbin/projects/script-editor"
-go test scriptedit 
-[1m[7m%[27m[1m[0m                                                                                                                                    ]2;gbin@sal: ~/projects/script-editor]1;..script-editor[0m[27m[24m[J[01;32mgbin@sal [01;34m~/projects/script-editor (master*) %[00m [K[1m[31mc[0m[39m[1m[31mc[1m[31ma[0m[39m[0m[32mc[0m[32ma[32mt[39m
-]2;cat]1;catVoilà je fais des eee  rreuu\  rs de frra  appe
-Voilà je fais des erreurs de frappe
-[1m[7m%[27m[1m[0m                                                                                                                                    ]2;gbin@sal: ~/projects/script-editor]1;..script-editor[0m[27m[24m[J[01;32mgbin@sal [01;34m~/projects/script-editor (master*) %[00m [K

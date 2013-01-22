@@ -8,6 +8,7 @@ import (
 	"strings"
 	"scriptedit"
 	"bytes"
+	"flag"
 )
 
 type Timing struct {
@@ -16,6 +17,9 @@ type Timing struct {
 }
 
 //var content string
+
+var sessionFilename string
+var timingFilename *string
 var parsedcontent []scriptedit.AnsiCmd
 
 var timings []Timing = make([]Timing, 0)
@@ -36,11 +40,19 @@ const ESC = scriptedit.ESC
 const ESC_CHR = scriptedit.ESC_CHR
 
 const RESET string = ESC + "c"
+const SMCUP = ESC + "7" + ESC + "[?47h"
+const RMCUP = ESC + "[2J" + ESC + "[?47l" + ESC + "8"
+
 const CLEAR_SCREEN string = ESC + "[2J"
+
 const CHANGE_SIZE = ESC + "[8;%d;%dt"
 const MOVE_CURSOR = ESC + "[%d;%dH"
+
 const RESET_COLOR = ESC + "[0m"
 const READ_CURSOR_POSITION = ESC + "[6n"
+
+// const RESTORE = ESC + "[20h" + ESC + "[8m"
+
 
 // keys
 const UP byte = 'A'
@@ -51,11 +63,27 @@ const BACK byte = 'D'
 const CTRL_PREFIX = "1;5"
 
 var (
-	orig_termios scriptedit.Termios;
+	orig_termios scriptedit.Termios
+	new_termios scriptedit.Termios
 	ttyfd int = 0 // STDIN_FILENO
 )
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s ", os.Args[0])
+		fmt.Fprintf(os.Stderr, "--t timingFile sessionFile\n\n")
+		fmt.Fprintf(os.Stderr, "The timing and session files can be created with the standard tool \"script\" that comes with the linux-util package.\nSee for example http://www.linuxinsight.com/replaying-terminal-sessions-with-scriptreplay.html\n\n")
+	}
+
+	timingFilename = flag.String("t", "", "The timings filename of your script capture")
+	flag.Parse()
+
+	sessionFilename = flag.Arg(0)
+	if timingFilename == nil ||  *timingFilename == "" || sessionFilename == "" {
+		flag.Usage()
+		return
+	}
+
 	file, err := os.Open("demo.session");
 	if err != nil {
 		fmt.Println(err)
@@ -103,8 +131,8 @@ func main() {
 	defer func() {
 		err = scriptedit.SetTermios(&orig_termios, ttyfd)
 	}();
-
-	err = scriptedit.Tty_raw(&orig_termios, ttyfd)
+	new_termios = orig_termios
+	err = scriptedit.Tty_raw(&new_termios, ttyfd)
 	if err != nil {
 		fmt.Println("Tty_raw fluked", err)
 		return
@@ -266,7 +294,52 @@ func readchr() byte {
 	return c_in[0]
 }
 
+
+
+func save(sessionFilename string, timingFilename string) error {
+	var err error
+	var file *os.File
+
+	err = os.Rename(sessionFilename, sessionFilename + ".bak")
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(timingFilename, timingFilename + ".bak")
+	if err != nil {
+		return err
+	}
+
+	file, err = os.Create(sessionFilename);
+	if err != nil {
+		fmt.Println(err)
+		return err
+	} else {
+		file.WriteString("This file has been edited by scriptcastinator\n")
+		for _, ansi := range parsedcontent {
+			file.WriteString(ansi.String())
+		}
+		file.Close()
+		file, err = os.Create(timingFilename);
+		if err != nil {
+			return err
+		} else {
+			for _, entry := range timings {
+				file.WriteString(fmt.Sprintf("%f %d\n", entry.time, entry.length))
+			}
+			file.Close()
+
+			write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 20))
+			write(fmt.Sprintf("File Saved"))
+		}
+
+	}
+	return nil
+
+}
+
 func screenio() error {
+	write(SMCUP)
 	write(CLEAR_SCREEN)
 	writeStatus()
 out:
@@ -307,9 +380,19 @@ out:
 					}
 				case '3':
 					if (readchr() == '~') { // this is DEL
-						copy(parsedcontent[position:], parsedcontent[position+1:])
-						parsedcontent = parsedcontent[:len(parsedcontent)-1]
-						redraw()
+						bytesToRemove := len([]byte(parsedcontent[position].String()))
+						timeindex, _, _ := deduceTiming(bytepos)     // FIXME we should look if it is at the end or at the beginning of the block
+						if timings[timeindex].length >= bytesToRemove {
+							timings[timeindex].length-= bytesToRemove
+						} else {
+							bytesToRemove-= timings[timeindex].length
+							timings[timeindex].length = 0
+							timings[timeindex + 1].length -= bytesToRemove  // FIXME, we should recurse here
+
+						}
+						copy(parsedcontent[position:], parsedcontent[position + 1:])
+						parsedcontent = parsedcontent[:len(parsedcontent) - 1]
+						writeStatus() // It should not change the screen
 					}
 				case BACK:
 					if position > 0 {
@@ -325,8 +408,12 @@ out:
 			}
 		case 'q':
 			break out
-		case ' ':
-			break
+			//case ' ':
+		case 's':
+			err := save(sessionFilename, *timingFilename)
+			if err != nil {
+				fmt.Println(err)
+			}
 		default :
 			write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 50))
 			write(fmt.Sprintf("Unknown Key '%c' (%d)", chr, chr))
@@ -335,6 +422,7 @@ out:
 	}
 
 	write(RESET)
+	write(RMCUP)
 	write(CLEAR_SCREEN)
 	return nil
 }
