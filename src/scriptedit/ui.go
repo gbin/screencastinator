@@ -10,14 +10,6 @@ const STATUS_POS = 43
 const WIDTH = 132
 const POINTER = WIDTH/2
 
-type EditorState struct {
-	Position   int
-	Bytepos    int
-	Time       float32
-	Total_time float32
-	Content    []AnsiCmd
-}
-
 func (ttyfd TTY) readCursorPosition() (int, int) {
 	ttyfd.write(READ_CURSOR_POSITION)
 	var chr byte
@@ -64,6 +56,10 @@ func (ttyfd TTY) writeTicker(state *EditorState) {
 
 
 	for index, ansi := range (state.Content[left:right]) {
+		if index + left >= state.In && index + left < state.Out {
+			ttyfd.write(ESC + "[43m")
+		}
+
 		if ansi.Code != nil {
 			ttyfd.write(ansi.Code.Symbol)
 		} else {
@@ -72,6 +68,7 @@ func (ttyfd TTY) writeTicker(state *EditorState) {
 		if index == WIDTH {
 			break
 		}
+		ttyfd.write(ESC + "[40m")
 	}
 
 }

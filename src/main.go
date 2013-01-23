@@ -8,21 +8,13 @@ import (
 	"flag"
 )
 
-type Timing struct {
-	time   float32
-	length int
-}
-
 var editorState scriptedit.EditorState
 
 var sessionFilename string
 var timingFilename *string
 
-var timings []Timing = make([]Timing, 0)
-
 const ESC = scriptedit.ESC
 const ESC_CHR = scriptedit.ESC_CHR
-
 
 // const RESTORE = ESC + "[20h" + ESC + "[8m"
 
@@ -52,7 +44,7 @@ func main() {
 	flag.Parse()
 
 	sessionFilename = flag.Arg(0)
-	if timingFilename == nil ||  *timingFilename == "" || sessionFilename == "" {
+	if timingFilename == nil || *timingFilename == "" || sessionFilename == "" {
 		flag.Usage()
 		return
 	}
@@ -73,22 +65,10 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	defer timings_file.Close()
 	timingsreader := bufio.NewReader(timings_file)
+	editorState.ParseTimings(timingsreader)
+	timings_file.Close()
 
-	// Put an artificial 0 at the beginning
-	timings = append(timings, Timing{0, 0})
-
-	for true {
-		var line, err = timingsreader.ReadBytes('\n')
-		var entry Timing = Timing{0, 0}
-		if err != nil {
-			break
-		}
-		fmt.Sscanf(string(line), "%f %d", &entry.time, &entry.length)
-		timings = append(timings, entry)
-	}
-	_, _, editorState.Total_time = deduceTiming(len(editorState.Content) - 1)
 
 	defer func() {
 		if err != nil { fmt.Println(err) }
@@ -118,30 +98,6 @@ func main() {
 }
 
 
-func deduceTiming(position int) (int, int, float32) {
-	var time float32
-	var index int
-	for pos , t := range timings {
-		if index >= position {
-			return pos, index, time
-		}
-		time += t.time
-		index += t.length
-	}
-	return len(timings) - 1 , index, time
-}
-
-
-func bytepos2position(bytepos int) int {
-	var offset int
-	for index, ansi := range editorState.Content {
-		offset+= len(ansi.String())
-		if offset >= editorState.Bytepos {
-			return index
-		}
-	}
-	return -1
-}
 
 
 func save(sessionFilename string, timingFilename string) error {
@@ -172,8 +128,8 @@ func save(sessionFilename string, timingFilename string) error {
 		if err != nil {
 			return err
 		} else {
-			for _, entry := range timings {
-				file.WriteString(fmt.Sprintf("%f %d\n", entry.time, entry.length))
+			for _, entry := range editorState.Timings {
+				file.WriteString(fmt.Sprintf("%f %d\n", entry.Time, entry.Length))
 			}
 			file.Close()
 			ttyfd.Notify("File Saved")
@@ -202,43 +158,35 @@ out:
 						chr = ttyfd.Readchr()
 						switch chr {   // this is a CTRL + ARROW
 						case BACK:
-							timeindex, offset, _ := deduceTiming(editorState.Bytepos)
-							if editorState.Bytepos > offset {
-								editorState.Position = bytepos2position(offset)
+							if editorState.PreviousTiming() {
 								ttyfd.Redraw(&editorState)
-							} else {
-								if timeindex > 0 {
-									editorState.Position = bytepos2position(editorState.Bytepos - timings[timeindex - 1].length)
-									ttyfd.Redraw(&editorState)
-								}
 							}
-							break
 						case FORWARD:
-							timeindex, offset, _ := deduceTiming(editorState.Bytepos)
-							if timeindex < len(timings) - 1 {
-								editorState.Position = bytepos2position(offset + timings[timeindex + 1].length)
+							if editorState.NextTiming() {
 								ttyfd.Redraw(&editorState)
 							}
-							break
 						}
 
 					}
 				case '3':
 					if (ttyfd.Readchr() == '~') { // this is DEL
-						bytesToRemove := len([]byte(editorState.Content[editorState.Position].String()))
-						timeindex, _, _ := deduceTiming(editorState.Bytepos)     // FIXME we should look if it is at the end or at the beginning of the block
-						if timings[timeindex].length >= bytesToRemove {
-							timings[timeindex].length-= bytesToRemove
+						if editorState.In == -1 {
+							editorState.DeleteRegion(editorState.Position, editorState.Position + 1)
+							ttyfd.WriteStatus(&editorState) // It should not change the screen
 						} else {
-							bytesToRemove-= timings[timeindex].length
-							timings[timeindex].length = 0
-							timings[timeindex + 1].length -= bytesToRemove  // FIXME, we should recurse here
-
+							editorState.DeleteRegion(editorState.In, editorState.Out)
+							if editorState.Position != editorState.In {
+								editorState.Position = editorState.In
+								editorState.In = -1
+								editorState.Out = -1
+								ttyfd.Redraw(&editorState)
+							} else {
+								editorState.In = -1
+								editorState.Out = -1
+								ttyfd.WriteStatus(&editorState) // It should not change the screen
+							}
 						}
-						copy(editorState.Content[editorState.Position:], editorState.Content[editorState.Position + 1:])
-						editorState.Content = editorState.Content[:len(editorState.Content) - 1]
-						_, _, editorState.Time = deduceTiming(editorState.Bytepos)
-						ttyfd.WriteStatus(&editorState) // It should not change the screen
+
 					}
 				case BACK:
 					if editorState.Position > 0 {
@@ -251,7 +199,26 @@ out:
 					}
 					ttyfd.Redraw(&editorState)
 				}
+			} else if chr == ESC_CHR {
+				editorState.Out = -1
+				editorState.In = -1
+				ttyfd.Redraw(&editorState)
 			}
+
+		case 'i':
+			editorState.In = editorState.Position
+			if editorState.Out < editorState.In {
+				editorState.Out = editorState.In + 1
+			}
+			ttyfd.Redraw(&editorState)
+		case 'o':
+			editorState.Out = editorState.Position
+			if editorState.Out < editorState.In {
+				editorState.Out = editorState.In + 1
+			}
+
+			ttyfd.Redraw(&editorState)
+
 		case 'q':
 			break out
 			//case ' ':
