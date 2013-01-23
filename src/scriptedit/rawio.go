@@ -31,10 +31,10 @@ const (
 const NCCS = 32
 
 type Termios struct {
-	c_iflag,  c_oflag,  c_cflag,  c_lflag tcflag_t
-	c_line                                cc_t
+	c_iflag,   c_oflag,   c_cflag,   c_lflag tcflag_t
+	c_line                                   cc_t
 	c_cc[NCCS] cc_t
-	c_ispeed,  c_ospeed                   speed_t
+	c_ispeed,   c_ospeed                     speed_t
 }
 
 // ioctl constants
@@ -43,7 +43,9 @@ const (
 	TCSETS = 0x5402
 )
 
-func GetTermios(dst *Termios, ttyfd int) error {
+type TTY int
+
+func (ttyfd TTY) GetTermios(dst *Termios) error {
 	r1, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(ttyfd), uintptr(TCGETS), uintptr(unsafe.Pointer(dst)))
 	if errno != 0 {
 		return errno
@@ -56,7 +58,7 @@ func GetTermios(dst *Termios, ttyfd int) error {
 	return nil
 }
 
-func SetTermios(src *Termios, ttyfd int) error {
+func (ttyfd TTY) SetTermios(src *Termios) error {
 	r1, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(ttyfd), uintptr(TCSETS), uintptr(unsafe.Pointer(src)))
 	if errno != 0 {
 		return errno
@@ -69,7 +71,7 @@ func SetTermios(src *Termios, ttyfd int) error {
 	return nil
 }
 
-func Tty_raw(raw *Termios, ttyfd int) error {
+func (ttyfd TTY) Tty_raw(raw *Termios) error {
 
 	raw.c_iflag &= ^(BRKINT | ICRNL | INPCK | ISTRIP | IXON)
 	raw.c_oflag &= ^(OPOST)
@@ -79,7 +81,7 @@ func Tty_raw(raw *Termios, ttyfd int) error {
 	raw.c_cc[VMIN] = 1
 	raw.c_cc[VTIME] = 0
 
-	err := SetTermios(raw, ttyfd)
+	err := ttyfd.SetTermios(raw)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -87,4 +89,17 @@ func Tty_raw(raw *Termios, ttyfd int) error {
 	return nil
 }
 
+func (ttyfd TTY) Readchr() byte {
+	var c_in [1]byte
+	syscall.Read(int(ttyfd), c_in[0:])
+	return c_in[0]
+}
+
+
+func (ttyfd TTY) write(chrs string) {
+	_, err := syscall.Write(int(ttyfd), []byte(chrs))
+	if err != nil {
+		fmt.Println(err)
+	}
+}
 

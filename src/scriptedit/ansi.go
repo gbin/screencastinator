@@ -105,6 +105,19 @@ var ALL_G1 []AnsiCode = []AnsiCode { G1MAP_8859, G1MAP_VT100, G1MAP_NULL, G1MAP_
 var ALL_ENCODING []AnsiCode = []AnsiCode { ISO8859, UTF8, UTF8_OLD}
 var ALL_SINGLES []AnsiCode = []AnsiCode {RIS, IND, NEL, HTS, RI, DECID, DECSC, DECRC, DECPNM, DECPAM}
 
+
+// FIX ME those are all manually encoded sequences, they should be AnsiCmd
+const READ_CURSOR_POSITION = ESC + "[6n"
+const MOVE_CURSOR = ESC + "[%d;%dH"
+const CLEAR_SCREEN string = ESC + "[2J"
+const CHANGE_SIZE = ESC + "[8;%d;%dt"
+const RESET_COLOR = ESC + "[0m"
+const RESET string = ESC + "c"
+
+const SMCUP = ESC + "7" + ESC + "[?47h"
+const RMCUP = ESC + "[2J" + ESC + "[?47l" + ESC + "8"
+
+
 func ParseANSI(reader *bufio.Reader) []AnsiCmd {
 	var result []AnsiCmd = make([]AnsiCmd, 0)
 	for {
