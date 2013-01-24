@@ -4,7 +4,7 @@ import (
 	"os"
 	"fmt"
 	"bufio"
-	"scriptedit"
+	"screencastinator/scriptedit"
 	"flag"
 )
 
