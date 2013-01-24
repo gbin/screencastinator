@@ -28,6 +28,19 @@ func NewEditorState() *EditorState {
 	return state
 }
 
+func (state *EditorState) Position2Bytepos(position int) int {
+	var offset int
+	for index, ansi := range state.Content {
+		if index == position {
+			return offset
+		}
+		offset+= len(ansi.String())
+	}
+	return -1
+}
+
+
+
 func (state *EditorState) Bytepos2position(bytepos int) int {
 	var offset int
 	for index, ansi := range state.Content {
@@ -43,7 +56,7 @@ func (state *EditorState) Bytepos2position(bytepos int) int {
 func (state *EditorState) NextTiming() bool {
 	timeindex, offset, _ := state.deduceTiming(state.Bytepos)
 	if timeindex < len(state.Timings) {
-		state.Bytepos  = offset + state.Timings[timeindex].Length
+		state.Bytepos = offset + state.Timings[timeindex].Length
 		state.Position = state.Bytepos2position(state.Bytepos) // FIXME could be optimized
 		return true // position changed
 	}
@@ -65,47 +78,54 @@ func (state *EditorState) PreviousTiming() bool {
 	return false
 }
 
-func (state *EditorState) DeleteRegion(from, to int) bool {
+func (state *EditorState) DeleteRegion(from_position, to_position int) bool {
 	var bytesToRemove int
-	for i := from; i < to; i++ {
+	for i := from_position; i < to_position; i++ {
 		bytesToRemove += len([]byte(state.Content[i].String()))
 	}
+	from_offset := state.Position2Bytepos(from_position)
 
-	timeindex, _, _ := state.deduceTiming(state.Bytepos) //  find back from with time bucket it is from
+	timeindex, timingBaseOffset, _ := state.deduceTiming(from_offset) //  find back from with time bucket it is from
+	nextTimingBaseOffset := timingBaseOffset + state.Timings[timeindex].Length
 
-	var bytesRemoved int
-	for bytesRemoved < bytesToRemove {
+	if to_position >= nextTimingBaseOffset && from_offset != timingBaseOffset { // ho, we need to cut in the middle the first element
+		to_remove := nextTimingBaseOffset - from_offset
+		state.Timings[timeindex].Length -= to_remove
+		bytesToRemove -=  to_remove
+		timeindex++
+	}
+
+	for {
 		currentElementLength := state.Timings[timeindex].Length
 		if currentElementLength > bytesToRemove {
-			state.Timings[timeindex].Length-=bytesToRemove
+			state.Timings[timeindex].Length-= bytesToRemove
 			break
 		}
-		bytesRemoved += currentElementLength
+		bytesToRemove -= currentElementLength
 		copy(state.Timings[timeindex:], state.Timings[timeindex + 1:])
 		state.Timings = state.Timings[:len(state.Timings) - 1]
 	}
 
-	copy(state.Content[from:], state.Content[to:])
-	state.Content = state.Content[:len(state.Content) - (to - from)]
+	copy(state.Content[from_position:], state.Content[to_position:])
+	state.Content = state.Content[:len(state.Content) - (to_position - from_position)]
 	_, _, state.Time = state.deduceTiming(state.Bytepos)
 
 	return false
 
 }
 
-
 // it gets the correct timing for a given absolute byte offset in the stream
 func (state *EditorState) deduceTiming(offset int) (int, int, float32) {
 	var time float32
-	var index int
-	for pos , t := range state.Timings {
+	var timingBaseOffset int
+	for timingsIndex , t := range state.Timings {
 		time += t.Time
-		if index + t.Length > offset {
-			return pos, index, time
+		if timingBaseOffset + t.Length > offset {
+			return timingsIndex, timingBaseOffset, time
 		}
-		index += t.Length
+		timingBaseOffset += t.Length
 	}
-	return len(state.Timings) - 1 , index, time
+	return len(state.Timings) - 1 , timingBaseOffset, time
 }
 
 func (state *EditorState) ParseTimings(reader *bufio.Reader) {
