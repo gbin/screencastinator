@@ -56,11 +56,15 @@ func (ttyfd TTY) writeTicker(state *EditorState) {
 
 
 	for index, ansi := range (state.Content[left:right]) {
-		if index + left >= state.In && index + left < state.Out {
+		inSelect := index + left >= state.In && index + left < state.Out
+		if inSelect {
 			ttyfd.write(ESC + "[43m")
 		}
 
 		if ansi.Code != nil {
+			if *ansi.Code == SGR && !inSelect {
+				ttyfd.write(ansi.String())
+			}
 			ttyfd.write(ansi.Code.Symbol)
 		} else {
 			ttyfd.write(string(EdulcorateCharacter(ansi.Letter)))
@@ -70,6 +74,7 @@ func (ttyfd TTY) writeTicker(state *EditorState) {
 		}
 		ttyfd.write(ESC + "[40m")
 	}
+	ttyfd.write(RESET_COLOR) // In case the last one was zorglubbed
 
 }
 
