@@ -11,7 +11,7 @@ import (
 var editorState scriptedit.EditorState
 
 var sessionFilename string
-var timingFilename *string
+var timingFilename string
 
 const ESC = scriptedit.ESC
 const ESC_CHR = scriptedit.ESC_CHR
@@ -36,18 +36,21 @@ var (
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s ", os.Args[0])
-		fmt.Fprintf(os.Stderr, "--t timingFile sessionFile\n\n")
-		fmt.Fprintf(os.Stderr, "The timing and session files can be created with the standard tool \"script\" that comes with the linux-util package.\nSee for example http://www.linuxinsight.com/replaying-terminal-sessions-with-scriptreplay.html\n\n")
+		fmt.Fprintf(os.Stderr, "basefilename\n\n")
+		fmt.Fprintf(os.Stderr, "It will load the [basefilename].session and [basefilename].timing\n\n")
+		fmt.Fprintf(os.Stderr, "The timing and session files can be created with the standard tool \"script\" that comes with the linux-util package.\n\nNote: You need to name your session and timing file with the .session and .timing extensions like this:\n%% script --timing=test.timing test.session\n\nYou can then edit it with:\n%% screencastinator test\n\nSee http://www.linuxinsight.com/replaying-terminal-sessions-with-scriptreplay.html for more information\n\n")
 	}
 
-	timingFilename = flag.String("t", "", "The timings filename of your script capture")
 	flag.Parse()
 
-	sessionFilename = flag.Arg(0)
-	if timingFilename == nil || *timingFilename == "" || sessionFilename == "" {
+
+	if flag.Arg(0) == "" {
 		flag.Usage()
 		return
 	}
+	sessionFilename = flag.Arg(0) + ".session"
+	timingFilename = flag.Arg(0) + ".timing"
+
 
 	file, err := os.Open(sessionFilename);
 	if err != nil {
@@ -60,7 +63,7 @@ func main() {
 	editorState.Content = scriptedit.ParseANSI(contentreader)
 
 	file.Close()
-	timings_file, err := os.Open(*timingFilename);
+	timings_file, err := os.Open(timingFilename);
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -189,15 +192,14 @@ out:
 
 					}
 				case BACK:
-					if editorState.Position > 0 {
-						editorState.Position-=1
+					if editorState.Previous() {
+						ttyfd.Redraw(&editorState)
 					}
-					ttyfd.Redraw(&editorState)
 				case FORWARD:
-					if editorState.Position < len(editorState.Content) {
-						editorState.Position+=1
+					if editorState.Next() {
+						ttyfd.Redraw(&editorState)
 					}
-					ttyfd.Redraw(&editorState)
+
 				}
 			} else if chr == ESC_CHR {
 				editorState.Out = -1
@@ -223,7 +225,7 @@ out:
 			break out
 			//case ' ':
 		case 's':
-			err := save(sessionFilename, *timingFilename)
+			err := save(sessionFilename, timingFilename)
 			if err != nil {
 				fmt.Println(err)
 			}

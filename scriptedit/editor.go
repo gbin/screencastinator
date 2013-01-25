@@ -15,7 +15,7 @@ type EditorState struct {
 	Timings        []Timing  // The associated timings to play them
 	Position       int       // The current index in the Content
 	Bytepos        int       // The raw offset corresponding to the Position
-	Time           float32   // The time correspoding to the Position
+	Time           float32   // The time corresponding to the Position
 	Total_time     float32   // The total time of the replay
 	In		     int       // The IN marker
 	Out            int       // The OUT marker
@@ -53,11 +53,27 @@ func (state *EditorState) Bytepos2position(bytepos int) int {
 	return -1
 }
 
+// it gets the correct timing for a given absolute byte offset in the stream
+func (state *EditorState) deduceTiming(offset int) (int, int, float32) {
+	var time float32
+	var timingBaseOffset int
+	for timingsIndex , t := range state.Timings {
+		time += t.Time
+		if timingBaseOffset + t.Length > offset {
+			return timingsIndex, timingBaseOffset, time
+		}
+		timingBaseOffset += t.Length
+	}
+	return len(state.Timings) - 1 , timingBaseOffset, time
+}
+
+
 func (state *EditorState) NextTiming() bool {
 	timeindex, offset, _ := state.deduceTiming(state.Bytepos)
 	if timeindex < len(state.Timings) {
 		state.Bytepos = offset + state.Timings[timeindex].Length
 		state.Position = state.Bytepos2position(state.Bytepos) // FIXME could be optimized
+		state.Time += state.Timings[timeindex].Time
 		return true // position changed
 	}
 	return false
@@ -73,10 +89,33 @@ func (state *EditorState) PreviousTiming() bool {
 	if timeindex > 0 {
 		state.Bytepos -= state.Timings[timeindex - 1].Length
 		state.Position = state.Bytepos2position(state.Bytepos)
+		state.Time -= state.Timings[timeindex - 1].Time
 		return true
 	}
 	return false
 }
+
+func (state *EditorState) Next() bool {
+	if state.Position < len(state.Content) {
+		state.Bytepos += len(state.Content[state.Position].String())
+		state.Position++
+		_, _, state.Time = state.deduceTiming(state.Bytepos)
+		return true
+	}
+	return false
+}
+
+func (state *EditorState) Previous() bool {
+	if state.Position > 0 {
+		state.Bytepos -= len(state.Content[state.Position - 1].String())
+		state.Position--
+		_, _, state.Time = state.deduceTiming(state.Bytepos)
+		return true
+	}
+	return false
+}
+
+
 
 func (state *EditorState) DeleteRegion(from_position, to_position int) bool {
 	var bytesToRemove int
@@ -114,25 +153,9 @@ func (state *EditorState) DeleteRegion(from_position, to_position int) bool {
 
 }
 
-// it gets the correct timing for a given absolute byte offset in the stream
-func (state *EditorState) deduceTiming(offset int) (int, int, float32) {
-	var time float32
-	var timingBaseOffset int
-	for timingsIndex , t := range state.Timings {
-		time += t.Time
-		if timingBaseOffset + t.Length > offset {
-			return timingsIndex, timingBaseOffset, time
-		}
-		timingBaseOffset += t.Length
-	}
-	return len(state.Timings) - 1 , timingBaseOffset, time
-}
 
 func (state *EditorState) ParseTimings(reader *bufio.Reader) {
 	state.Timings = make([]Timing, 0)
-
-	// Put an artificial 0 at the beginning
-	state.Timings = append(state.Timings, Timing{0, 0})
 
 	for true {
 		var line, err = reader.ReadBytes('\n')
