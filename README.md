@@ -3,7 +3,7 @@ Screencastinator
 
 Screencastinator is a Tool to edit your ANSI console screencasts created with the standard linux-util tool "script".
 
-[![screenshot](http://gbin.github.com/screencastinator/screencastinator.png)](http://gbin.github.com/screencastinator/screencastinator.png)
+screenshot[![screenshot](http://gbin.github.com/screencastinator/screencastinator.png)](http://gbin.github.com/screencastinator/screencastinator.png)
 
 
 Making a screencast is extremely tedious. This tool gives you the opportunity to correct the mistakes you made during the recording without having to correct them in a video editor.
@@ -14,9 +14,16 @@ Scriptcastinator will help you replay your screencast to the point: % cd mydir a
 
 **Note: this is an early release and expect bugs while using it. Any contributor is welcomed.**
 
+## Downloads ##
+
+prerelease v0.1
+[MacOS amd64](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-darwin-amd64)
+[Linux 386](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-386)
+[Linux amd6](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linuxamd64)
+
 ## Requirements ##
-* Go 1.0.3+
-* linux-util
+* Go 1.0.3+  (only if you want to contribute)
+* linux-util (if you want to record you screencast, not needed for edition)
 
 ## How to use it ##
 
