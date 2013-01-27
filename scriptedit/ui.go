@@ -4,6 +4,7 @@ import (
 	"strings"
 	"fmt"
 	"bytes"
+	"time"
 )
 
 const STATUS_POS = 43
@@ -16,23 +17,23 @@ func (ttyfd TTY) readCursorPosition() (int, int) {
 	var nb []byte = make([]byte, 0)
 	var x, y int
 
-	chr = ttyfd.Readchr()
+	chr, _, _ = ttyfd.Readchr()
 	if chr != ESC_CHR {
 		return 0, 0 // something failed !
 	}
-	chr = ttyfd.Readchr()
+	chr, _, _ = ttyfd.Readchr()
 	if chr != '[' {
 		return 0, 0 // something failed !
 	}
 
 	for chr != ';' {
-		chr = ttyfd.Readchr()
+		chr, _, _ = ttyfd.Readchr()
 		nb = append(nb, chr)
 	}
 	fmt.Sscanf(string(nb), "%d", &x)
 	nb = make([]byte, 0)
 	for chr != 'R' {
-		chr = ttyfd.Readchr()
+		chr, _, _ = ttyfd.Readchr()
 		nb = append(nb, chr)
 	}
 	fmt.Sscanf(string(nb), "%d", &y)
@@ -90,6 +91,21 @@ func (ttyfd TTY) navBar(state *EditorState) {
 	ttyfd.write(BOTTOM_NAVBAR)
 }
 
+func (ttyfd TTY) JumpToNextSameCursorPosition(state *EditorState) bool {
+	initx, inity := ttyfd.readCursorPosition()
+	position := state.Position
+	for position < len(state.Content) {
+		ttyfd.write(state.Content[position].String())
+		position++
+		x, y := ttyfd.readCursorPosition()
+		if x == initx && y == inity {
+			state.Position = position
+			return true
+		}
+	}
+	return false
+}
+
 func (ttyfd TTY) WriteStatus(state *EditorState) {
 	x, y := ttyfd.readCursorPosition()
 	ttyfd.write(RESET_COLOR)
@@ -110,16 +126,19 @@ func (ttyfd TTY) WriteStatus(state *EditorState) {
 	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, leftExplanation))
 	ttyfd.write("| " + explanation + " |")
 
-	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 5, 5))
+	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 2))
 	ttyfd.write(fmt.Sprintf("Offset %d / %d", state.Position, len(state.Content)))
-	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 6, 5))
 
-	ttyfd.write(fmt.Sprintf("Time   %f / %f s", state.Time, state.Total_time))
+	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 23))
+	ttyfd.write(fmt.Sprintf("Time   %.2f / %.2f s", state.Time, state.Total_time))
 
-	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 5, 50))
-	ttyfd.write(fmt.Sprintf("[←] : for   [→] : rev   [SPACE] : Play/Pause   [d] : del  %dx%d", x, y))
-	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 6, 50))
-	ttyfd.write(fmt.Sprintf("[CTRL] + [←] : ff   [CTRL] + [→] : rw   [q] : quit"))
+	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 3, 123))
+	ttyfd.write(fmt.Sprintf("Cur %dx%d", x, y))
+
+	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 5, 0))
+	ttyfd.write(fmt.Sprintf("         [←] : reverse       [→] : forward         [SPACE] : Play/Pause       [i] : IN mark         [o] : OUT mark        [d] : del"))
+	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, STATUS_POS + 6, 0))
+	ttyfd.write(fmt.Sprintf("[CTRL] + [←] : rw   [CTRL] + [→] : ff                                         [n] : smart extend    [s] : SAVE            [q] : quit"))
 	ttyfd.write(fmt.Sprintf(MOVE_CURSOR, x, y))
 }
 
@@ -151,4 +170,37 @@ func (ttyfd TTY) Restore() {
 	ttyfd.write(RESET)
 	ttyfd.write(RMCUP)
 	ttyfd.write(CLEAR_SCREEN)
+}
+
+var playTime int64
+var refTime int64
+var playTimeIndex int
+
+func (ttyfd TTY) PlayingPoll(state *EditorState) {
+	var nbSecDone int64 = time.Now().UnixNano() - refTime
+	bytesToPlay := 0
+	for playTime < nbSecDone {
+		bytesToPlay += state.Timings[playTimeIndex].Length
+		playTime += int64(float64(state.Timings[playTimeIndex].Time)*1000000000)
+		playTimeIndex++
+	}
+	chunkToDisplay := ""
+	for len(chunkToDisplay) < bytesToPlay {
+		chunkToDisplay += state.Content[state.Position].String()
+		state.Position++
+	}
+
+	ttyfd.write(chunkToDisplay)
+	if state.Timings[playTimeIndex].Time > .250 {
+		time.Sleep(250)
+	} else {
+		time.Sleep(time.Duration(state.Timings[playTimeIndex].Time)*time.Millisecond)
+	}
+
+}
+
+func (ttyfd TTY) StartPlaying(state *EditorState) {
+	playTime = 0
+	refTime = time.Now().UnixNano()
+	playTimeIndex, _, _ = state.deduceTiming(state.Bytepos)
 }

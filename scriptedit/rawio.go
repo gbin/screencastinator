@@ -89,10 +89,10 @@ func (ttyfd TTY) Tty_raw(raw *Termios) error {
 	return nil
 }
 
-func (ttyfd TTY) Readchr() byte {
+func (ttyfd TTY) Readchr() (byte, int, error) {
 	var c_in [1]byte
-	syscall.Read(int(ttyfd), c_in[0:])
-	return c_in[0]
+	n, err := syscall.Read(int(ttyfd), c_in[0:])
+	return c_in[0], n, err
 }
 
 
@@ -103,3 +103,6 @@ func (ttyfd TTY) write(chrs string) {
 	}
 }
 
+func (ttyfd TTY) SetNonBlocking(b bool) error {
+	return syscall.SetNonblock(int(ttyfd), b)
+}

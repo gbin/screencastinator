@@ -72,6 +72,9 @@ func main() {
 	editorState.ParseTimings(timingsreader)
 	timings_file.Close()
 
+	editorState.In = -1
+	editorState.Out = -1
+
 
 	defer func() {
 		if err != nil { fmt.Println(err) }
@@ -143,36 +146,49 @@ func save(sessionFilename string, timingFilename string) error {
 
 }
 
+
 func mainLoop() error {
 	ttyfd.Init()
 	ttyfd.WriteStatus(&editorState)
+
+	playing := false
 out:
 	for {
-		chr := ttyfd.Readchr()
+		chr, _, err := ttyfd.Readchr()
+
+		if playing && err != nil {
+			ttyfd.PlayingPoll(&editorState)
+			continue out
+		}
+
 		switch chr {
 		case ESC_CHR:
-			chr = ttyfd.Readchr()
+			chr, _, _ = ttyfd.Readchr()
 			if chr == '[' {
-				chr = ttyfd.Readchr()
+				chr, _, _ = ttyfd.Readchr()
 
 				switch chr {
 				case '1':
-					if (ttyfd.Readchr() == ';' && ttyfd.Readchr() == '5') {
-						chr = ttyfd.Readchr()
-						switch chr {   // this is a CTRL + ARROW
-						case BACK:
-							if editorState.PreviousTiming() {
-								ttyfd.Redraw(&editorState)
-							}
-						case FORWARD:
-							if editorState.NextTiming() {
-								ttyfd.Redraw(&editorState)
-							}
-						}
+					chr, _, _ = ttyfd.Readchr()
+					if (chr == ';') {
+						chr, _, _ = ttyfd.Readchr()
+						if (chr == '5') {
+							chr, _, _ = ttyfd.Readchr()
+							switch chr {   // this is a CTRL + ARROW
+							case BACK:
+								if editorState.PreviousTiming() {
+									ttyfd.Redraw(&editorState)
+								}
+							case FORWARD:
+								if editorState.NextTiming() {
+									ttyfd.Redraw(&editorState)
+								}
+							}  }
 
 					}
 				case '3':
-					if (ttyfd.Readchr() == '~') { // this is DEL
+					chr, _, _ = ttyfd.Readchr()
+					if (chr == '~') { // this is DEL
 						if editorState.In == -1 {
 							editorState.DeleteRegion(editorState.Position, editorState.Position + 1)
 							ttyfd.WriteStatus(&editorState) // It should not change the screen
@@ -213,6 +229,7 @@ out:
 				editorState.Out = editorState.In + 1
 			}
 			ttyfd.Redraw(&editorState)
+
 		case 'o':
 			editorState.Out = editorState.Position
 			if editorState.Out < editorState.In {
@@ -221,9 +238,26 @@ out:
 
 			ttyfd.Redraw(&editorState)
 
+		case 'n':
+			if (editorState.In == -1) {
+				editorState.In = editorState.Position
+			}
+			result := ttyfd.JumpToNextSameCursorPosition(&editorState)
+			if result {
+				editorState.Out = editorState.Position
+				ttyfd.WriteStatus(&editorState)
+			} else {
+				ttyfd.Redraw(&editorState)
+			}
+
 		case 'q':
 			break out
-			//case ' ':
+		case ' ':
+			if !playing {
+				ttyfd.StartPlaying(&editorState)
+			}
+			playing = !playing
+			ttyfd.SetNonBlocking(playing)
 		case 's':
 			err := save(sessionFilename, timingFilename)
 			if err != nil {
