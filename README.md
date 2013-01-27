@@ -18,11 +18,11 @@ Scriptcastinator will help you replay your screencast to the point: % cd mydir a
 
 _Prerelease v0.1_
 
-[MacOS amd64](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-darwin-amd64)
+[MacOS amd64 binary](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-darwin-amd64)
 
-[Linux 386](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-386)
+[Linux 386 binary](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-386)
 
-[Linux amd6](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-amd64)
+[Linux amd64 binary](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-amd64)
 
 ## Requirements ##
 * Go 1.0.3+  (only if you want to contribute)
