@@ -22,7 +22,7 @@ _Prerelease v0.1_
 
 [Linux 386](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-386)
 
-[Linux amd6](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linuxamd64)
+[Linux amd6](http://gbin.github.com/screencastinator/releases/screencastinator-v0.1-linux-amd64)
 
 ## Requirements ##
 * Go 1.0.3+  (only if you want to contribute)
