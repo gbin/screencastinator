@@ -46,8 +46,9 @@ This will create 2 files ending with .timing and .session.
 You can pass them on to screencastinator :
 
 ```
-screencastinator --t file.timing file.session
+screencastinator file
 ```
+(screencastinator will add .timing and .session automatically) 
 
 The editor is composed by :
 - a view window at the top
